@@ -26,22 +26,48 @@ namespace ArgParse
         
         private static bool ShouldShowHelp(string[] args)
         {
-            // Show help only if:
+            // Show help if:
             // 1. Explicit help flags are provided
-            // 2. Empty array AND all required parameters lack defaults
             if (args.Contains("-h") || args.Contains("--help"))
                 return true;
             
+            // 2. Empty array - show help based on parameter configuration
             if (args.Length == 0)
             {
-                // Show help if all parameters are required but have no defaults
-                var hasRequiredWithoutDefaults = typeof(T).GetProperties()
+                var properties = typeof(T).GetProperties();
+                
+                // Check if class has only subcommands
+                var subCommands = properties
+                    .SelectMany(p => p.GetCustomAttributes(true))
+                    .OfType<CmdSubCommandAttribute>()
+                    .ToList();
+                
+                var parameters = properties
                     .SelectMany(p => p.GetCustomAttributes(true))
                     .OfType<CmdParameterAttribute>()
-                    .Any(attr => attr.Required && attr.Default == null);
+                    .ToList();
+                
+                var flags = properties
+                    .SelectMany(p => p.GetCustomAttributes(true))
+                    .OfType<CmdFlagAttribute>()
+                    .ToList();
+                
+                // If class has only subcommands, show help
+                if (subCommands.Any() && !parameters.Any() && !flags.Any())
+                    return true;
+                
+                var totalOptions = parameters.Count + flags.Count;
                 
                 // Show help if there are required parameters without defaults
-                return hasRequiredWithoutDefaults;
+                if (parameters.Any(attr => attr.Required && attr.Default == null))
+                    return true;
+                
+                // Show help if there are multiple options (2 or more), indicating a complex CLI
+                if (totalOptions >= 2)
+                    return true;
+                
+                // Don't show help for single optional parameter
+                return false;
             }
             
             return false;
@@ -49,6 +75,42 @@ namespace ArgParse
 
         private static void Validate()
         {
+            var allProperties = typeof(T).GetProperties();
+            
+            // Check for mixing CmdSubCommandAttribute with CmdFlagAttribute or CmdParameterAttribute
+            var subCommandProperties = allProperties
+                .Where(p => p.GetCustomAttributes(true).OfType<CmdSubCommandAttribute>().Any())
+                .ToList();
+            
+            var flagProperties = allProperties
+                .Where(p => p.GetCustomAttributes(true).OfType<CmdFlagAttribute>().Any())
+                .ToList();
+            
+            var parameterProperties = allProperties
+                .Where(p => p.GetCustomAttributes(true).OfType<CmdParameterAttribute>().Any())
+                .ToList();
+            
+            // If there are subcommand properties, ensure there are no flag or parameter properties
+            if (subCommandProperties.Any())
+            {
+                if (flagProperties.Any())
+                {
+                    throw new InvalidOperationException(
+                        $"Cannot mix CmdSubCommandAttribute with CmdFlagAttribute. " +
+                        $"Properties with CmdSubCommandAttribute: {string.Join(", ", subCommandProperties.Select(p => p.Name))}. " +
+                        $"Properties with CmdFlagAttribute: {string.Join(", ", flagProperties.Select(p => p.Name))}.");
+                }
+                
+                if (parameterProperties.Any())
+                {
+                    throw new InvalidOperationException(
+                        $"Cannot mix CmdSubCommandAttribute with CmdParameterAttribute. " +
+                        $"Properties with CmdSubCommandAttribute: {string.Join(", ", subCommandProperties.Select(p => p.Name))}. " +
+                        $"Properties with CmdParameterAttribute: {string.Join(", ", parameterProperties.Select(p => p.Name))}.");
+                }
+            }
+            
+            // Existing validation for default values
             var properties = typeof(T).GetProperties().Where(p => p.GetCustomAttributes(true).Where(t => t is CmdParameterAttribute).Cast<CmdParameterAttribute>().Any(t => t.Default != null)).Select(p => new {Info = p, Attribute = p.GetCustomAttributes(true).Where(t => t is CmdParameterAttribute).Cast<CmdParameterAttribute>().Single()});
             foreach(var item in properties)
             {
@@ -70,11 +132,10 @@ namespace ArgParse
         public static string Help()
         {
             var helpText = new System.Text.StringBuilder();
-            helpText.AppendLine("Usage: [options]");
-            helpText.AppendLine();
-            helpText.AppendLine("Options:");
-            
             var properties = typeof(T).GetProperties();
+            
+            // Check if class has only subcommands
+            var subCommandEntries = new List<(string name, string description)>();
             var helpEntries = new List<(string name, string description, string type)>();
             
             foreach (var property in properties)
@@ -83,6 +144,9 @@ namespace ArgParse
                 {
                     switch (attr)
                     {
+                        case CmdSubCommandAttribute subCommand:
+                            subCommandEntries.Add((subCommand.Name, subCommand.Description ?? ""));
+                            break;
                         case CmdParameterAttribute parameter:
                             helpEntries.Add((parameter.Name, parameter.Description ?? "", "parameter"));
                             break;
@@ -93,11 +157,15 @@ namespace ArgParse
                 }
             }
             
-            // Format as table
-            if (helpEntries.Count > 0)
+            // If class has only subcommands, display subcommands help
+            if (subCommandEntries.Count > 0 && helpEntries.Count == 0)
             {
-                var maxNameLength = Math.Max(helpEntries.Max(e => e.Item1.Length), 8); // "Name" header
-                var maxDescriptionLength = Math.Max(helpEntries.Max(e => e.Item2.Length), 11); // "Description" header
+                helpText.AppendLine("Usage: <command> [options]");
+                helpText.AppendLine();
+                helpText.AppendLine("Available commands:");
+                
+                var maxNameLength = Math.Max(subCommandEntries.Max(e => e.Item1.Length), 4); // "Name" header
+                var maxDescriptionLength = Math.Max(subCommandEntries.Max(e => e.Item2.Length), 11); // "Description" header
                 
                 // Header
                 var nameHeader = "Name".PadRight(maxNameLength);
@@ -106,11 +174,39 @@ namespace ArgParse
                 helpText.AppendLine(new string('-', maxNameLength + maxDescriptionLength + 1));
                 
                 // Entries
-                foreach (var entry in helpEntries)
+                foreach (var entry in subCommandEntries)
                 {
                     var nameEntry = entry.Item1.PadRight(maxNameLength);
                     var descEntry = entry.Item2.PadRight(maxDescriptionLength);
                     helpText.AppendLine($"{nameEntry} {descEntry}");
+                }
+            }
+            else
+            {
+                // Display regular options help
+                helpText.AppendLine("Usage: [options]");
+                helpText.AppendLine();
+                helpText.AppendLine("Options:");
+                
+                // Format as table
+                if (helpEntries.Count > 0)
+                {
+                    var maxNameLength = Math.Max(helpEntries.Max(e => e.Item1.Length), 4); // "Name" header
+                    var maxDescriptionLength = Math.Max(helpEntries.Max(e => e.Item2.Length), 11); // "Description" header
+                    
+                    // Header
+                    var nameHeader = "Name".PadRight(maxNameLength);
+                    var descHeader = "Description".PadRight(maxDescriptionLength);
+                    helpText.AppendLine($"{nameHeader} {descHeader}");
+                    helpText.AppendLine(new string('-', maxNameLength + maxDescriptionLength + 1));
+                    
+                    // Entries
+                    foreach (var entry in helpEntries)
+                    {
+                        var nameEntry = entry.Item1.PadRight(maxNameLength);
+                        var descEntry = entry.Item2.PadRight(maxDescriptionLength);
+                        helpText.AppendLine($"{nameEntry} {descEntry}");
+                    }
                 }
             }
             
@@ -120,12 +216,87 @@ namespace ArgParse
         public T Take()
         {
             Validate();
+            
+            // First, check for subcommands
+            var subCommandProperties = typeof(T).GetProperties()
+                .Where(p => p.GetCustomAttributes(true).OfType<CmdSubCommandAttribute>().Any())
+                .ToList();
+            
+            if (subCommandProperties.Any() && _args.Count > 0)
+            {
+                var firstArg = _args[0];
+                foreach (var property in subCommandProperties)
+                {
+                    var subCommandAttr = property.GetCustomAttributes(true)
+                        .OfType<CmdSubCommandAttribute>()
+                        .FirstOrDefault();
+                    
+                    if (subCommandAttr != null && subCommandAttr.Name == firstArg)
+                    {
+                        // Found matching subcommand
+                        var subCommandType = property.PropertyType;
+                        var subCommandInstance = Activator.CreateInstance(subCommandType);
+                        
+                        // Remove the subcommand name from args
+                        var subCommandArgs = _args.Skip(1).ToArray();
+                        
+                        // Parse the subcommand's parameters
+                        foreach (var subProp in subCommandType.GetProperties())
+                        {
+                            foreach (var subAttr in subProp.GetCustomAttributes(true))
+                            {
+                                if (subAttr is CmdParameterAttribute parameter)
+                                {
+                                    if (!parameter.Multiple)
+                                    {
+                                        try
+                                        {
+                                            object value = null;
+                                            int index = Array.IndexOf(subCommandArgs, parameter.Name);
+                                            if (index != -1 && index + 1 < subCommandArgs.Length)
+                                                value = subCommandArgs[index + 1];
+                                            else if (!parameter.Required && parameter.Default != null)
+                                                value = parameter.Default;
+                                            else if (parameter.Required)
+                                                throw new RequiredAttributeException($"Parameter {parameter.Name} is required.");
+                                            
+                                            if (value != null)
+                                                subProp.SetValue(subCommandInstance, Convert.ChangeType(value, subProp.PropertyType));
+                                        }
+                                        catch (ArgumentOutOfRangeException ex)
+                                        {
+                                            throw new ArgumentException($"Value wasn't set for a parameter {parameter.Name}.", ex);
+                                        }
+                                    }
+                                }
+                                else if (subAttr is CmdFlagAttribute flag)
+                                {
+                                    int index = Array.IndexOf(subCommandArgs, flag.Name);
+                                    subProp.SetValue(subCommandInstance, index != -1);
+                                }
+                            }
+                        }
+                        
+                        // Set the subcommand instance on the main instance
+                        property.SetValue(_instance, subCommandInstance);
+                        
+                        // Return early since we processed a subcommand
+                        return _instance;
+                    }
+                }
+            }
+            
+            // If no subcommand matched, process regular parameters and flags
             foreach (var property in typeof(T).GetProperties())
             {
                 foreach (var attr in property.GetCustomAttributes(true))
                 {
                     switch (attr)
                     {
+                        case CmdSubCommandAttribute:
+                            // Skip subcommand properties in regular processing
+                            break;
+                            
                         case CmdParameterAttribute:
                             {
                                 CmdParameterAttribute parameter = (CmdParameterAttribute)attr;

@@ -1,7 +1,7 @@
 ﻿using ArgParse;
 using ArgParse.Attributes;
 
-namespace ArsParseSpec.ArgumentsSpec
+namespace ArgParseSpec.ArgumentsSpec
 {
     public class FlagArgumentSpec
     {

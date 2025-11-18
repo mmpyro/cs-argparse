@@ -1,7 +1,7 @@
 ﻿using ArgParse;
 using ArgParse.Attributes;
 
-namespace ArsParseSpec.ErrorHandlingSpec
+namespace ArgParseSpec.ErrorHandlingSpec
 {
     public class MissingArgumentSpec
     {

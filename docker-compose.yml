@@ -1,0 +1,21 @@
+services:
+  argparse-build:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: build
+    container_name: argparse-build
+    volumes:
+      - .:/app
+    command: dotnet build ArgParseSpec/ArgParseSpec.csproj -c Release
+
+  argparse-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    container_name: argparse-test
+    volumes:
+      - .:/app
+    depends_on:
+      - argparse-build

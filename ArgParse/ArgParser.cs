@@ -1,6 +1,7 @@
 ﻿using ArgParse.Attributes;
 using ArgParse.Exceptions;
 using System.Collections;
+using System.Linq;
 
 namespace ArgParse
 {
@@ -11,8 +12,39 @@ namespace ArgParse
 
         public ArgParser(string[] args)
         {
-            _args = [.. args];
+            _args = new List<string>(args);
             _instance = (T)Activator.CreateInstance(typeof(T));
+            
+            // Check for help request
+            if (ShouldShowHelp(_args.ToArray()))
+            {
+                var helpText = Help();
+                Console.WriteLine(helpText);
+                throw new HelpRequestedException("Help was requested");
+            }
+        }
+        
+        private static bool ShouldShowHelp(string[] args)
+        {
+            // Show help only if:
+            // 1. Explicit help flags are provided
+            // 2. Empty array AND all required parameters lack defaults
+            if (args.Contains("-h") || args.Contains("--help"))
+                return true;
+            
+            if (args.Length == 0)
+            {
+                // Show help if all parameters are required but have no defaults
+                var hasRequiredWithoutDefaults = typeof(T).GetProperties()
+                    .SelectMany(p => p.GetCustomAttributes(true))
+                    .OfType<CmdParameterAttribute>()
+                    .Any(attr => attr.Required && attr.Default == null);
+                
+                // Show help if there are required parameters without defaults
+                return hasRequiredWithoutDefaults;
+            }
+            
+            return false;
         }
 
         private static void Validate()
@@ -37,8 +69,52 @@ namespace ArgParse
 
         public static string Help()
         {
-            //TODO: Implement it;
-            throw new NotImplementedException();
+            var helpText = new System.Text.StringBuilder();
+            helpText.AppendLine("Usage: [options]");
+            helpText.AppendLine();
+            helpText.AppendLine("Options:");
+            
+            var properties = typeof(T).GetProperties();
+            var helpEntries = new List<(string name, string description, string type)>();
+            
+            foreach (var property in properties)
+            {
+                foreach (var attr in property.GetCustomAttributes(true))
+                {
+                    switch (attr)
+                    {
+                        case CmdParameterAttribute parameter:
+                            helpEntries.Add((parameter.Name, parameter.Description ?? "", "parameter"));
+                            break;
+                        case CmdFlagAttribute flag:
+                            helpEntries.Add((flag.Name, flag.Description ?? "", "flag"));
+                            break;
+                    }
+                }
+            }
+            
+            // Format as table
+            if (helpEntries.Count > 0)
+            {
+                var maxNameLength = Math.Max(helpEntries.Max(e => e.Item1.Length), 8); // "Name" header
+                var maxDescriptionLength = Math.Max(helpEntries.Max(e => e.Item2.Length), 11); // "Description" header
+                
+                // Header
+                var nameHeader = "Name".PadRight(maxNameLength);
+                var descHeader = "Description".PadRight(maxDescriptionLength);
+                helpText.AppendLine($"{nameHeader} {descHeader}");
+                helpText.AppendLine(new string('-', maxNameLength + maxDescriptionLength + 1));
+                
+                // Entries
+                foreach (var entry in helpEntries)
+                {
+                    var nameEntry = entry.Item1.PadRight(maxNameLength);
+                    var descEntry = entry.Item2.PadRight(maxDescriptionLength);
+                    helpText.AppendLine($"{nameEntry} {descEntry}");
+                }
+            }
+            
+            return helpText.ToString();
         }
 
         public T Take()

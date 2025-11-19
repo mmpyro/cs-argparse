@@ -1,4 +1,6 @@
 # ArgParse
+[![codecov](https://codecov.io/gh/mmarszalek/argparse/branch/main/graph/badge.svg)](https://codecov.io/gh/mmarszalek/argparse)
+
 
 ## Project Description
 

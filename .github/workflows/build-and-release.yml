@@ -23,7 +23,11 @@ jobs:
     - name: Build
       run: dotnet build ArgParse.sln --configuration Release --no-restore
     - name: Test
-      run: dotnet test ArgParse.sln --configuration Release --no-build --verbosity normal --logger trx
+      run: dotnet test ArgParse.sln --configuration Release --no-build --verbosity normal --logger trx --collect:"XPlat Code Coverage"
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        files: **/coverage.cobertura.xml
     - name: Publish Test Results
       if: github.event_name == 'pull_request'
       uses: dorny/test-reporter@v1
@@ -47,7 +51,7 @@ jobs:
     - name: Build
       run: dotnet build ArgParse.sln --configuration Release --no-restore
     - name: Test
-      run: dotnet test ArgParse.sln --configuration Release --no-build --verbosity normal
+      run: dotnet test ArgParse.sln --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
     - name: Pack
       run: dotnet pack ArgParse/ArgParse.csproj --configuration Release --no-build --output ./nupkg
     - name: Push to NuGet

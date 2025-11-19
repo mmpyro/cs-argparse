@@ -44,6 +44,7 @@ jobs:
       with:
         recreate: true
         path: code-coverage-results.md
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Publish Test Results
       if: github.event_name == 'pull_request'
       uses: dorny/test-reporter@v1

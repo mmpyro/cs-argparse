@@ -20,7 +20,14 @@ jobs:
     - name: Build
       run: dotnet build ArgParse.sln --configuration Release --no-restore
     - name: Test
-      run: dotnet test ArgParse.sln --configuration Release --no-build --verbosity normal
+      run: dotnet test ArgParse.sln --configuration Release --no-build --verbosity normal --logger trx
+    - name: Publish Test Results
+      if: github.event_name == 'pull_request'
+      uses: dorny/test-reporter@v1
+      with:
+        name: .NET Tests
+        path: '**/*.trx'
+        reporter: dotnet-trx
 
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

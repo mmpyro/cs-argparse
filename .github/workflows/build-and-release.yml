@@ -27,7 +27,7 @@ jobs:
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
       with:
-        files: **/coverage.cobertura.xml
+        files: "**/coverage.cobertura.xml"
     - name: Publish Test Results
       if: github.event_name == 'pull_request'
       uses: dorny/test-reporter@v1

@@ -25,11 +25,10 @@ jobs:
     - name: Test
       run: dotnet test ArgParse.sln --configuration Release --no-build --verbosity normal --logger trx --collect:"XPlat Code Coverage"
     - name: Upload coverage to GitHub
-      uses: 5monkeys/cobertura-action@v0.5.0
+      uses: 5monkeys/cobertura-action@v0.3.0
       with:
         path: "**/coverage.cobertura.xml"
         repo_token: ${{ secrets.GITHUB_TOKEN }}
-        branch_coverage: true
     - name: Publish Test Results
       if: github.event_name == 'pull_request'
       uses: dorny/test-reporter@v1

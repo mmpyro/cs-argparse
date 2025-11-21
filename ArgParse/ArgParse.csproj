@@ -6,8 +6,10 @@
     <Nullable>disable</Nullable>
     <PackageId>ArgParse</PackageId>
     <Version>1.0.0</Version>
-    <Authors>YourName</Authors>
+    <Authors>Michał Marszałek</Authors>
     <Description>A .NET argument parsing library</Description>
+    <PackageProjectUrl>https://github.com/mmpyro/cs-argparse</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/mmpyro/cs-argparse</RepositoryUrl>
   </PropertyGroup>
 
 </Project>

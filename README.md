@@ -1,6 +1,4 @@
 # ArgParse
-[![codecov](https://codecov.io/gh/mmarszalek/argparse/branch/main/graph/badge.svg)](https://codecov.io/gh/mmarszalek/argparse)
-
 
 ## Project Description
 
@@ -37,6 +35,59 @@ The project is organized as follows:
   - `Dockerfile`: Docker image definition.
   - `.gitignore`: Git ignore rules.
   - `LICENSE`: Project license file.
+
+## Installation
+
+To install the ArgParse library, run the following command in your project directory:
+
+```bash
+dotnet add package CSArgParse
+```
+
+## Quick Start
+
+Here is a simple example of how to use ArgParse in your `Program.cs`:
+
+```csharp
+using ArgParse;
+using ArgParse.Attributes;
+using ArgParse.Exceptions;
+
+public class ProgramArgs
+{
+    [CmdParameter(Name = "-n", Description = "User Name", Required = true)]
+    public string UserName { get; set; }
+
+    [CmdFlag(Name = "-v", Description = "Verbose mode")]
+    public bool Verbose { get; set; }
+}
+
+public class Program
+{
+    public static void Main(string[] args)
+    {
+        try
+        {
+            var parser = new ArgParser<ProgramArgs>(args);
+            var options = parser.Take();
+
+            Console.WriteLine($"Hello, {options.UserName}!");
+            if (options.Verbose)
+            {
+                Console.WriteLine("Verbose mode is ON.");
+            }
+        }
+        catch (HelpRequestedException)
+        {
+            // Help text is automatically printed by the parser
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+    }
+}
+```
 
 ## Use Cases
 
@@ -130,9 +181,9 @@ Console.WriteLine(pArgs.Add.UserName); // Output: John Doe
 
 ## Getting Started
 
-1. Add the ArgParse library to your project.
-2. Define a class with properties decorated with the appropriate attributes.
-3. Create an instance of `ArgParser<T>` with your argument array.
-4. Call `Take()` to parse the arguments and get the populated object.
+1. **Install**: Run `dotnet add package CSArgParse`.
+2. **Define**: Create a class and decorate its properties with `[CmdParameter]`, `[CmdFlag]`, etc.
+3. **Parse**: In your `Main` method, instantiate `ArgParser<YourClass>` with the `args` array.
+4. **Execute**: Call `Take()` to retrieve the populated object and use it in your application.
 
-For automatic help generation, run your application with `-h` or `--help`, or no arguments in certain configurations.
+For automatic help generation, run your application with `-h` or `--help`.
